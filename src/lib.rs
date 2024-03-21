@@ -36,6 +36,17 @@ use num_traits::float::FloatCore;
 #[cfg(any(feature = "std", feature = "libm"))]
 use num_traits::float::{Float, FloatConst};
 
+pub trait ComplexNum: PartialEq + Zero + One + Add + Div + Mul + Neg + Sub {
+    type Output;
+}
+
+impl<T> ComplexNum for T
+where
+    T: Num + Neg,
+{
+    type Output = Self;
+}
+
 mod cast;
 mod pow;
 
@@ -136,7 +147,7 @@ impl<T: Clone + Num> Complex<T> {
     }
 }
 
-impl<T: Clone + Num + Neg<Output = T>> Complex<T> {
+impl<T: Clone + ComplexNum> Complex<T> {
     /// Returns the complex conjugate. i.e. `re - i im`
     #[inline]
     pub fn conj(&self) -> Self {
@@ -672,7 +683,7 @@ impl<'a, T: Clone + Num> From<&'a T> for Complex<T> {
 
 macro_rules! forward_ref_ref_binop {
     (impl $imp:ident, $method:ident) => {
-        impl<'a, 'b, T: Clone + Num> $imp<&'b Complex<T>> for &'a Complex<T> {
+        impl<'a, 'b, T: Clone + Num + Neg> $imp<&'b Complex<T>> for &'a Complex<T> {
             type Output = Complex<T>;
 
             #[inline]
@@ -685,7 +696,7 @@ macro_rules! forward_ref_ref_binop {
 
 macro_rules! forward_ref_val_binop {
     (impl $imp:ident, $method:ident) => {
-        impl<'a, T: Clone + Num> $imp<Complex<T>> for &'a Complex<T> {
+        impl<'a, T: Clone + Num + Neg> $imp<Complex<T>> for &'a Complex<T> {
             type Output = Complex<T>;
 
             #[inline]
@@ -698,7 +709,7 @@ macro_rules! forward_ref_val_binop {
 
 macro_rules! forward_val_ref_binop {
     (impl $imp:ident, $method:ident) => {
-        impl<'a, T: Clone + Num> $imp<&'a Complex<T>> for Complex<T> {
+        impl<'a, T: Clone + Num + Neg> $imp<&'a Complex<T>> for Complex<T> {
             type Output = Complex<T>;
 
             #[inline]
@@ -721,7 +732,7 @@ macro_rules! forward_all_binop {
 forward_all_binop!(impl Add, add);
 
 // (a + i b) + (c + i d) == (a + c) + i (b + d)
-impl<T: Clone + Num> Add<Complex<T>> for Complex<T> {
+impl<T: Clone + ComplexNum> Add<Complex<T>> for Complex<T> {
     type Output = Self;
 
     #[inline]
@@ -733,7 +744,7 @@ impl<T: Clone + Num> Add<Complex<T>> for Complex<T> {
 forward_all_binop!(impl Sub, sub);
 
 // (a + i b) - (c + i d) == (a - c) + i (b - d)
-impl<T: Clone + Num> Sub<Complex<T>> for Complex<T> {
+impl<T: Clone + ComplexNum> Sub<Complex<T>> for Complex<T> {
     type Output = Self;
 
     #[inline]
@@ -745,7 +756,7 @@ impl<T: Clone + Num> Sub<Complex<T>> for Complex<T> {
 forward_all_binop!(impl Mul, mul);
 
 // (a + i b) * (c + i d) == (a*c - b*d) + i (a*d + b*c)
-impl<T: Clone + Num> Mul<Complex<T>> for Complex<T> {
+impl<T: Clone + ComplexNum> Mul<Complex<T>> for Complex<T> {
     type Output = Self;
 
     #[inline]
@@ -795,7 +806,7 @@ impl<T: Clone + Num> Div<Complex<T>> for Complex<T> {
 
 forward_all_binop!(impl Rem, rem);
 
-impl<T: Clone + Num> Complex<T> {
+impl<T: Clone + ComplexNum> Complex<T> {
     /// Find the gaussian integer corresponding to the true ratio rounded towards zero.
     fn div_trunc(&self, divisor: &Self) -> Self {
         let Complex { re, im } = self / divisor;
@@ -1148,7 +1159,7 @@ impl<T: Clone + Num> Rem<T> for Complex<T> {
 real_arithmetic!(usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64);
 
 // constants
-impl<T: Clone + Num> Zero for Complex<T> {
+impl<T: Clone + ComplexNum> Zero for Complex<T> {
     #[inline]
     fn zero() -> Self {
         Self::new(Zero::zero(), Zero::zero())
@@ -1166,7 +1177,7 @@ impl<T: Clone + Num> Zero for Complex<T> {
     }
 }
 
-impl<T: Clone + Num> One for Complex<T> {
+impl<T: Clone + ComplexNum> One for Complex<T> {
     #[inline]
     fn one() -> Self {
         Self::new(One::one(), Zero::zero())
@@ -1427,7 +1438,7 @@ where
     }
 }
 
-impl<T: Num + Clone> Num for Complex<T> {
+impl<T: Num + Clone + Neg> Num for Complex<T> {
     type FromStrRadixErr = ParseComplexError<T::FromStrRadixErr>;
 
     /// Parses `a +/- bi`; `ai +/- b`; `a`; or `bi` where `a` and `b` are of type `T`
@@ -1456,7 +1467,7 @@ impl<T: Num + Clone> Num for Complex<T> {
     }
 }
 
-impl<T: Num + Clone> Sum for Complex<T> {
+impl<T: ComplexNum + Clone> Sum for Complex<T> {
     fn sum<I>(iter: I) -> Self
     where
         I: Iterator<Item = Self>,
@@ -1465,12 +1476,12 @@ impl<T: Num + Clone> Sum for Complex<T> {
     }
 }
 
-impl<'a, T: 'a + Num + Clone> Sum<&'a Complex<T>> for Complex<T> {
+impl<'a, T: 'a + ComplexNum + Clone> Sum<&'a Complex<T>> for Complex<T> {
     fn sum<I>(iter: I) -> Self
     where
         I: Iterator<Item = &'a Complex<T>>,
     {
-        iter.fold(Self::zero(), |acc, c| acc + c)
+        iter.fold(Self::zero(), |acc, c| acc + c.clone())
     }
 }
 
